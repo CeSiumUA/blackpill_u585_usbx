@@ -34,7 +34,11 @@
 
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
-
+typedef enum {
+  ECHO_DEVICE_IDLE = 0,
+  ECHO_DEVICE_WAIT,
+  ECHO_DEVICE_SEND
+} ECHO_DEVICE_STATE;
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -99,6 +103,10 @@ int main(void)
   HAL_PCDEx_SetTxFiFo(&hpcd_USB_OTG_FS, 2, USBD_CDCACM_EPINCMD_FS_MPS / 4);
 
   status = _ux_dcd_stm32_initialize((ULONG)USB_OTG_FS, (ULONG)&hpcd_USB_OTG_FS);
+  if (status != UX_SUCCESS)
+  {
+    Error_Handler();
+  }
 
   HAL_PCD_Start(&hpcd_USB_OTG_FS);
   /* USER CODE END 2 */
@@ -108,67 +116,62 @@ int main(void)
   uint32_t tick = HAL_GetTick();
   uint32_t tick_usb = tick;
   uint32_t tick_usb_tx = tick;
-  uint8_t txbuf[50];
-  ULONG length;
-  ULONG actual_length;
-  length = sprintf(( char *)txbuf,"I'm alive\r\n");
-  UINT write_state = UX_STATE_RESET;
+  uint8_t buf[256];
+  ULONG actual_length = 0;
+  ECHO_DEVICE_STATE echo_state = ECHO_DEVICE_IDLE;
   UINT ux_status = UX_STATE_RESET;
 
   while (1)
   {
     tick = HAL_GetTick();
     if(tick >= tick_usb)
-	{
-		tick_usb = tick + 1;
-		_ux_system_tasks_run();
-	}
+    {
+      tick_usb = tick + 1;
+      _ux_system_tasks_run();
+    }
 
     if(tick >= tick_usb_tx)
-	{
-		tick_usb_tx = tick + 1;
+    {
+      tick_usb_tx = tick + 1;
 
-		extern UX_SLAVE_CLASS_CDC_ACM  *cdc_acm;
-		if(cdc_acm != UX_NULL)
-		{
-			switch(write_state)
-			{
-			case UX_STATE_RESET:
+      extern UX_SLAVE_CLASS_CDC_ACM  *cdc_acm;
+      if(cdc_acm != UX_NULL)
+      {
+        ux_status = ux_device_class_cdc_acm_read_run(cdc_acm, buf, sizeof(buf), &actual_length);
+        if(ux_status == UX_STATE_NEXT && actual_length > 0)
+        {
+          echo_state = ECHO_DEVICE_SEND;
+        }
+        switch(echo_state)
+        {
+        case ECHO_DEVICE_SEND:
+          ux_status = ux_device_class_cdc_acm_write_run(cdc_acm, buf, actual_length, &actual_length);
 
-				ux_status = ux_device_class_cdc_acm_write_run(cdc_acm, txbuf,length, &actual_length);
+          if (ux_status != UX_STATE_WAIT)
+          {
+            /* Reset state.  */
+            echo_state = ECHO_DEVICE_IDLE;
+            break;
+          }
+          echo_state = ECHO_DEVICE_WAIT;
+          break;
 
-				if (ux_status != UX_STATE_WAIT)
-				{
-					/* Reset state.  */
-					write_state = UX_STATE_RESET;
-					break;
-				}
-				write_state = UX_STATE_WAIT;
-				break;
-
-			case UX_STATE_WAIT:
-				/* Continue to run state machine.  */
-				ux_status = ux_device_class_cdc_acm_write_run(cdc_acm, UX_NULL, 0, &actual_length);
-				/* Check if there is  fatal error.  */
-				if (ux_status < UX_STATE_IDLE)
-				{
-					/* Reset state.  */
-					write_state = UX_STATE_RESET;
-					break;
-				}
-				/* Check if dataset is transmitted */
-				if (ux_status <= UX_STATE_NEXT)
-				{
-					write_state = UX_STATE_RESET;
-					tick_usb_tx = tick + 1000;
-				}
-				/* Keep waiting.  */
-				break;
-			default:
-				break;
-			}
-		}
-	}
+        case ECHO_DEVICE_WAIT:
+          /* Continue to run state machine.  */
+          ux_status = ux_device_class_cdc_acm_write_run(cdc_acm, UX_NULL, 0, &actual_length);
+          /* Check if dataset is transmitted */
+          if (ux_status <= UX_STATE_NEXT)
+          {
+            echo_state = ECHO_DEVICE_IDLE;
+            actual_length = 0;
+          }
+          /* Keep waiting.  */
+          break;
+        default:
+          break;
+        }
+      }
+    }
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
