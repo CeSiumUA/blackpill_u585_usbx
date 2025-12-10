@@ -111,7 +111,7 @@ int main(void)
   uint8_t txbuf[50];
   ULONG length;
   ULONG actual_length;
-  length = sprintf(( char *)txbuf,"Hello! WeAct Studio\r\n");
+  length = sprintf(( char *)txbuf,"I'm alive\r\n");
   UINT write_state = UX_STATE_RESET;
   UINT ux_status = UX_STATE_RESET;
 
