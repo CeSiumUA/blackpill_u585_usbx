@@ -107,6 +107,14 @@ int main(void)
   /* USER CODE BEGIN WHILE */
   uint32_t tick = HAL_GetTick();
   uint32_t tick_usb = tick;
+  uint32_t tick_usb_tx = tick;
+  uint8_t txbuf[50];
+  ULONG length;
+  ULONG actual_length;
+  length = sprintf(( char *)txbuf,"Hello! WeAct Studio\r\n");
+  UINT write_state = UX_STATE_RESET;
+  UINT ux_status = UX_STATE_RESET;
+
   while (1)
   {
     tick = HAL_GetTick();
@@ -114,6 +122,52 @@ int main(void)
 	{
 		tick_usb = tick + 1;
 		_ux_system_tasks_run();
+	}
+
+    if(tick >= tick_usb_tx)
+	{
+		tick_usb_tx = tick + 1;
+
+		extern UX_SLAVE_CLASS_CDC_ACM  *cdc_acm;
+		if(cdc_acm != UX_NULL)
+		{
+			switch(write_state)
+			{
+			case UX_STATE_RESET:
+
+				ux_status = ux_device_class_cdc_acm_write_run(cdc_acm, txbuf,length, &actual_length);
+
+				if (ux_status != UX_STATE_WAIT)
+				{
+					/* Reset state.  */
+					write_state = UX_STATE_RESET;
+					break;
+				}
+				write_state = UX_STATE_WAIT;
+				break;
+
+			case UX_STATE_WAIT:
+				/* Continue to run state machine.  */
+				ux_status = ux_device_class_cdc_acm_write_run(cdc_acm, UX_NULL, 0, &actual_length);
+				/* Check if there is  fatal error.  */
+				if (ux_status < UX_STATE_IDLE)
+				{
+					/* Reset state.  */
+					write_state = UX_STATE_RESET;
+					break;
+				}
+				/* Check if dataset is transmitted */
+				if (ux_status <= UX_STATE_NEXT)
+				{
+					write_state = UX_STATE_RESET;
+					tick_usb_tx = tick + 1000;
+				}
+				/* Keep waiting.  */
+				break;
+			default:
+				break;
+			}
+		}
 	}
     /* USER CODE END WHILE */
 

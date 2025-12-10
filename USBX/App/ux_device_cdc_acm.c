@@ -38,7 +38,7 @@
 
 /* Private macro -------------------------------------------------------------*/
 /* USER CODE BEGIN PM */
-
+UX_SLAVE_CLASS_CDC_ACM  *cdc_acm;
 /* USER CODE END PM */
 
 /* Private variables ---------------------------------------------------------*/
@@ -66,6 +66,7 @@ VOID USBD_CDC_ACM_Activate(VOID *cdc_acm_instance)
 {
   /* USER CODE BEGIN USBD_CDC_ACM_Activate */
   UX_PARAMETER_NOT_USED(cdc_acm_instance);
+  cdc_acm = (UX_SLAVE_CLASS_CDC_ACM *)cdc_acm_instance;
   /* USER CODE END USBD_CDC_ACM_Activate */
 
   return;
